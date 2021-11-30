@@ -1,0 +1,124 @@
+//////////////////////////////////////////////////////////////////////////////////
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+
+module Montacarga(
+	input Clock,
+	input Reset,
+	input P1,
+	input P2,
+	input P3,
+	input FC1,
+	input FC2,
+	input FC3,
+	input motor_enable,
+	output reg [1:0] Motor,
+	output reg [0:6] display
+	);
+
+	reg [2:0] state, next_state; //son 7 estados y sobra 1.
+	
+		
+	//SE DEFINEN LAS CONSTANTES QUE REPRESENTAN LOS ESTADOS DE LA MAQUINA DE MOORE
+	parameter Piso1 = 3'b000; //reposo en el piso 1.
+	parameter Subiendo_2 = 3'b001; //subiendo al piso 2.
+	parameter Piso2 = 3'b010; //reposo en el piso 2.
+	parameter Subiendo_3 = 3'b011; //subiendo al piso 3.
+	parameter Piso3 = 3'b100; //reposo en el piso 3.
+	parameter Bajando_2 = 3'b110; //bajano al piso 2.
+	parameter Bajando_1 = 3'b101; //bajando al piso 1.
+	parameter DISP_OFF = 7'b000_0000; //abc_defg
+	parameter UNO = 7'b011_0000;     //[012_3456]
+	parameter DOS = 7'b110_1101;     //[27-19-23-21-20-28-18] el bit f esta al vicio no se usa.
+	parameter TRES = 7'b111_1001;
+	parameter SUBE = 2'b01;
+	parameter BAJA = 2'b10;
+	parameter APAGADO = 2'b11;
+	
+//----------------------------------------------------------------------
+	//registro de asignacion de estados.
+	always @ (posedge Clock)
+		if(!Reset) state <= Bajando_1;
+		else state <= next_state;
+	
+//-------------------------------------------------------------------------
+	//logica del progreso de estados.
+	always @ (*) //un Reset, Clock, o hex_digit.
+		case(state)
+			Piso1:
+				if(P2) next_state <= Subiendo_2;
+				else if(P3) next_state <= Subiendo_3;
+				else next_state <= Piso1;
+			Piso2:
+				if(P1) next_state <= Bajando_1;
+				else if(P3) next_state <= Subiendo_3;
+				else next_state <= Piso2;
+			Piso3:
+				if(P2) next_state <= Bajando_2;
+				else if(P1) next_state <= Bajando_1;
+				else next_state <= Piso3;
+			Subiendo_2:
+				if(FC2) next_state <= Piso2;
+				else next_state <= Subiendo_2;
+			Subiendo_3:
+				if(FC3) next_state <= Piso3;
+				else next_state <= Subiendo_3;
+			Bajando_2:
+				if(FC2) next_state <= Piso2;
+				else next_state <= Bajando_2;
+			Bajando_1:
+				if(FC1) next_state <= Piso1;
+				else next_state <= Bajando_1;
+			default: next_state <= Bajando_1;
+		endcase
+		
+//--------------------------------------------------------------------------------------------
+
+
+
+//logica de salidas.
+	always @(*) //un Reset, Clock, pulsador o final de carrera.
+	begin
+		if(state == Piso1)
+		begin
+			Motor <= APAGADO;
+			display <= UNO;
+		end
+		else if(state == Piso2)
+		begin
+			Motor <= APAGADO;
+			display <= DOS;
+		end
+		else if(state == Piso3)
+		begin
+			Motor <= APAGADO;
+			display <= TRES;
+		end
+		else if((state == Subiendo_2) & motor_enable)
+		begin
+			Motor <= SUBE;
+			display <= DISP_OFF;
+		end
+		else if((state == Subiendo_3) & motor_enable)
+		begin
+			Motor <= SUBE;
+			display <= DISP_OFF;
+		end
+		else if((state == Bajando_2) & motor_enable)
+		begin
+			Motor <= BAJA;
+			display <= DISP_OFF;
+		end
+		else if((state == Bajando_1) & motor_enable)
+		begin
+			Motor <= BAJA;
+			display <= DISP_OFF;
+		end
+		else
+		begin
+			Motor <= APAGADO;
+			display <= 7'b111_1110;
+		end
+	end
+	
+endmodule

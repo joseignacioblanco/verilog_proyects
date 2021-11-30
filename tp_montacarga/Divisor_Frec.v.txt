@@ -1,0 +1,63 @@
+//////////////////////////////////////////////////////////////////////////////////
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+module Divisor_Frec(
+	input Clock, //clock de 4Mhz
+	input P1,
+	input P2,
+	input P3,
+	input FC1,
+	output reg clk_aux,
+	output reg Reset_interno
+	
+	//output reg [20:0] bus_counter //con 20 bits cuento hasta 4megas
+	);
+
+	parameter frecuencia = 22'b11_1101_0000_1001_0000_0000; //Frecuencia del Clock integrado en el CPLD (4 MHz)
+	parameter frec_out = 1'b1; //Frecuencia de salida, que debe ser de 1 Hz
+	parameter cont_max = frecuencia / (2*frec_out);
+	parameter cant_segundos = 6'b11_1100;
+
+	reg [5:0] aux;
+	reg [20:0] bus_counter;
+	
+	
+	initial begin
+		aux = 6'b00_0000;
+		clk_aux = 1'b0;
+		bus_counter = 21'b0_0000_0000_0000_0000_0000;
+		Reset_interno = 1'b0;
+	end
+
+//-------------------------------------------------------------------------
+
+	always @ (posedge Clock)
+		if(bus_counter == cont_max)
+		begin
+			clk_aux <= ~clk_aux;  //Cambia el estado del clk_aux y resetea el contador
+			bus_counter <= 21'b0_0000_0000_0000_0000_0000;
+		end
+		else
+			bus_counter <= bus_counter + 1;
+
+//--------------------------------------------------------------------------
+
+	always @ (negedge clk_aux)
+		if(aux < cant_segundos)
+		begin //Se coloca que sea menor a 9 ya que demora un pulso de reloj en reaccionar el sistema
+			if(P1==0 & P2==0 & P3==0)
+			begin	//Por lo tanto el reset se pone en 0 si durante 60 segundos no se presiona ningun pulsador
+				aux <= aux + 1'b1;
+				Reset_interno <= 1'b1;
+			end
+			else begin
+				aux <= 6'b00_0000;
+				Reset_interno <= 1'b1;
+		   end
+		end	
+		else
+		begin
+			aux <= 6'b00_0000;
+			Reset_interno <= FC1;//si no esta en el piso 1 reinicia automaticamente despues del minuto.
+		end
+endmodule
